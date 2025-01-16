@@ -1,16 +1,23 @@
-import './__mocks__/resolveConfig.js'
-
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import fs from 'fs-extra'
 
-import { withGitIntegration } from './__utils__/withGitIntegration.js'
 import { prettierListDifferent } from './__fixtures__/configs.js'
 import { prettyJS, uglyJS } from './__fixtures__/files.js'
+import { withGitIntegration } from './__utils__/withGitIntegration.js'
 
 jest.setTimeout(20000)
 jest.retryTimes(2)
+
+const exists = async (path) => {
+  try {
+    await fs.stat(path)
+    return true
+  } catch {
+    return false
+  }
+}
 
 describe('lint-staged', () => {
   test(
@@ -24,7 +31,7 @@ describe('lint-staged', () => {
 
       await gitCommit()
 
-      expect(await fs.exists(path.join(cwd, 'README.md'))).toEqual(false)
+      expect(await exists(path.join(cwd, 'README.md'))).toEqual(false)
     })
   )
 
@@ -60,8 +67,8 @@ describe('lint-staged', () => {
         ?? .lintstagedrc.json"
       `)
 
-      expect(await fs.exists(path.join(cwd, 'test.js'))).toEqual(false)
-      expect(await fs.exists(path.join(cwd, 'README_NEW.md'))).toEqual(false)
+      expect(await exists(path.join(cwd, 'test.js'))).toEqual(false)
+      expect(await exists(path.join(cwd, 'README_NEW.md'))).toEqual(false)
     })
   )
 
@@ -80,7 +87,7 @@ describe('lint-staged', () => {
         ?? .lintstagedrc.json"
       `)
 
-      await expect(gitCommit({ lintStaged: { allowEmpty: true } })).rejects.toThrowError(
+      await expect(gitCommit({ lintStaged: { allowEmpty: true } })).rejects.toThrow(
         'Reverting to original state because of errors...'
       )
 
@@ -90,7 +97,7 @@ describe('lint-staged', () => {
         ?? .lintstagedrc.json"
       `)
 
-      expect(await fs.exists(path.join(cwd, 'README.md'))).toEqual(false)
+      expect(await exists(path.join(cwd, 'README.md'))).toEqual(false)
     })
   )
 })

@@ -1,10 +1,8 @@
-import './__mocks__/resolveConfig.js'
-
 import { jest } from '@jest/globals'
 
-import { withGitIntegration } from './__utils__/withGitIntegration.js'
 import { prettierListDifferent } from './__fixtures__/configs.js'
 import { prettyJS } from './__fixtures__/files.js'
+import { withGitIntegration } from './__utils__/withGitIntegration.js'
 
 jest.setTimeout(20000)
 jest.retryTimes(2)
@@ -23,9 +21,7 @@ describe('lint-staged', () => {
           `"fatal: your current branch 'master' does not have any commits yet"`
         )
 
-        expect(await gitCommit({ lintStaged: { debug: true } })).toMatch(
-          'Skipping backup because there’s no initial commit yet'
-        )
+        expect(await gitCommit({})).toMatch('Skipping backup because there’s no initial commit yet')
 
         // Nothing is wrong, so the initial commit is created
         expect(await execGit(['rev-list', '--count', 'HEAD'], { cwd })).toEqual('1')
