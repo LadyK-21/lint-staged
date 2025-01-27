@@ -1,8 +1,6 @@
 import { resolveTaskFn } from '../../lib/resolveTaskFn.js'
 import { getInitialState } from '../../lib/state.js'
 
-jest.unmock('execa')
-
 describe('resolveTaskFn', () => {
   it('should call execa with shell when configured so', async () => {
     const taskFn = resolveTaskFn({
@@ -19,7 +17,7 @@ describe('resolveTaskFn', () => {
     const context = getInitialState()
 
     const taskFn = resolveTaskFn({
-      command: 'node',
+      command: 'node -e "setTimeout(() => void 0, 10000)"',
       isFn: true,
     })
     const taskPromise = taskFn(context)
@@ -31,8 +29,10 @@ describe('resolveTaskFn', () => {
     const task2Promise = taskFn2(context)
 
     await expect(task2Promise).rejects.toThrowErrorMatchingInlineSnapshot(
-      `"node -e \\"process.exit(1)\\" [FAILED]"`
+      `"node -e "process.exit(1)" [FAILED]"`
     )
-    await expect(taskPromise).rejects.toThrowErrorMatchingInlineSnapshot(`"node [KILLED]"`)
+    await expect(taskPromise).rejects.toThrowErrorMatchingInlineSnapshot(
+      `"node -e "setTimeout(() => void 0, 10000)" [KILLED]"`
+    )
   })
 })

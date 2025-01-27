@@ -1,13 +1,11 @@
-import './__mocks__/resolveConfig.js'
-
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
-import fs from 'fs-extra'
 
-import { withGitIntegration } from './__utils__/withGitIntegration.js'
 import { prettierWrite } from './__fixtures__/configs.js'
 import * as fileFixtures from './__fixtures__/files.js'
+import { withGitIntegration } from './__utils__/withGitIntegration.js'
 
 jest.setTimeout(20000)
 jest.retryTimes(2)
@@ -19,7 +17,7 @@ describe('lint-staged', () => {
       await appendFile('test.js', fileFixtures.uglyJS)
 
       await appendFile('.config/.lintstagedrc.json', JSON.stringify(prettierWrite))
-      await fs.ensureSymlink(
+      await fs.symlink(
         path.join(cwd, '.config/.lintstagedrc.json'),
         path.join(cwd, '.lintstagedrc.json')
       )

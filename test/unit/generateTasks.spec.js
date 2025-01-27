@@ -1,11 +1,10 @@
 import path from 'node:path'
 
-import normalize from 'normalize-path'
-
 import { generateTasks } from '../../lib/generateTasks.js'
+import { normalizePath } from '../../lib/normalizePath.js'
 
 // Windows filepaths
-const normalizePath = (input) => normalize(path.resolve('/', input))
+const normalizeWindowsPath = (input) => normalizePath(path.resolve('/', input))
 
 const cwd = '/repo'
 
@@ -63,13 +62,15 @@ describe('generateTasks', () => {
     })
   })
 
-  it('should return an empty file list for linters with no matches.', async () => {
+  it('should return an empty file list for tasks with no matches.', async () => {
     const result = await generateTasks({ config, cwd, files })
 
     result.forEach((task) => {
       if (task.commands === 'unknown-js' || task.commands === 'parent-dir-css-or-js') {
+        // eslint-disable-next-line jest/no-conditional-expect
         expect(task.fileList.length).toEqual(0)
       } else {
+        // eslint-disable-next-line jest/no-conditional-expect
         expect(task.fileList.length).not.toEqual(0)
       }
     })
@@ -87,7 +88,7 @@ describe('generateTasks', () => {
         `/repo/deeper/test2.js`,
         `/repo/even/deeper/test.js`,
         `/repo/.hidden/test.js`,
-      ].map(normalizePath),
+      ].map(normalizeWindowsPath),
     })
   })
 
@@ -103,7 +104,7 @@ describe('generateTasks', () => {
         `/repo/deeper/test2.js`,
         `/repo/even/deeper/test.js`,
         `/repo/.hidden/test.js`,
-      ].map(normalizePath),
+      ].map(normalizeWindowsPath),
     })
   })
 
@@ -113,7 +114,7 @@ describe('generateTasks', () => {
     expect(linter).toEqual({
       pattern: 'deeper/*.js',
       commands: 'deeper-js',
-      fileList: [`/repo/deeper/test.js`, `/repo/deeper/test2.js`].map(normalizePath),
+      fileList: [`/repo/deeper/test.js`, `/repo/deeper/test2.js`].map(normalizeWindowsPath),
     })
   })
 
@@ -123,7 +124,7 @@ describe('generateTasks', () => {
     expect(linter).toEqual({
       pattern: '.hidden/*.js',
       commands: 'hidden-js',
-      fileList: [`/repo/.hidden/test.js`].map(normalizePath),
+      fileList: [`/repo/.hidden/test.js`].map(normalizeWindowsPath),
     })
   })
 
@@ -144,7 +145,7 @@ describe('generateTasks', () => {
         `/repo/deeper/test2.css`,
         `/repo/even/deeper/test.css`,
         `/repo/.hidden/test.css`,
-      ].map(normalizePath),
+      ].map(normalizeWindowsPath),
     })
   })
 
@@ -163,7 +164,7 @@ describe('generateTasks', () => {
     expect(linter).toEqual({
       pattern: 'test{1..2}.css',
       commands: 'lint',
-      fileList: [`/repo/deeper/test1.css`, `/repo/deeper/test2.css`].map(normalizePath),
+      fileList: [`/repo/deeper/test1.css`, `/repo/deeper/test2.css`].map(normalizeWindowsPath),
     })
   })
 
@@ -177,7 +178,7 @@ describe('generateTasks', () => {
     expect(linter).toEqual({
       pattern: '*.js',
       commands: 'root-js',
-      fileList: [`/repo/deeper/test.js`, `/repo/deeper/test2.js`].map(normalizePath),
+      fileList: [`/repo/deeper/test.js`, `/repo/deeper/test2.js`].map(normalizeWindowsPath),
     })
   })
 
@@ -190,7 +191,7 @@ describe('generateTasks', () => {
     const linter = result.find((item) => item.pattern === '../*.{css,js}')
     expect(linter).toEqual({
       commands: 'parent-dir-css-or-js',
-      fileList: [`/repo/test.js`, `/repo/test.css`].map(normalizePath),
+      fileList: [`/repo/test.js`, `/repo/test.css`].map(normalizeWindowsPath),
       pattern: '../*.{css,js}',
     })
   })

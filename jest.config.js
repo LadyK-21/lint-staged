@@ -1,20 +1,26 @@
-const config = {
+/** @type {import('jest').Config} */
+export default {
   collectCoverageFrom: [
     'lib/**/*.js',
-    // Avoid ESM import.meta parse error.
-    // (Can't measure coverage anyway, it's always mocked)
+    /**
+     * Instanbul uses babel to parse coverage data,
+     * so `import.meta` is not available
+     */
     '!lib/resolveConfig.js',
   ],
-  moduleDirectories: ['node_modules'],
-  setupFiles: ['./testSetup.js'],
-  snapshotSerializers: ['jest-snapshot-serializer-ansi'],
-  testEnvironment: 'node',
-  transform: {
-    '\\.[jt]sx?$': 'babel-jest',
-    '\\.mjs$': 'babel-jest',
+  coverageReporters: ['html', 'text', 'text-summary', 'cobertura'],
+  coverageThreshold: {
+    global: {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
   },
-  /** Also transform ESM packages in `node_modules` */
-  transformIgnorePatterns: [],
+  moduleDirectories: ['node_modules'],
+  prettierPath: null,
+  setupFiles: ['./test/testSetup.js'],
+  snapshotSerializers: ['./test/serializer.cjs'],
+  testEnvironment: 'node',
+  transform: {},
 }
-
-export default config

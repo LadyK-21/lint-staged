@@ -1,13 +1,11 @@
-import './__mocks__/resolveConfig.js'
-
 import fs from 'node:fs'
 import path from 'node:path'
 
 import { jest } from '@jest/globals'
 
-import { withGitIntegration } from './__utils__/withGitIntegration.js'
-import * as fileFixtures from './__fixtures__/files.js'
 import * as configFixtures from './__fixtures__/configs.js'
+import * as fileFixtures from './__fixtures__/files.js'
+import { withGitIntegration } from './__utils__/withGitIntegration.js'
 
 jest.setTimeout(20000)
 jest.retryTimes(2)
@@ -26,6 +24,9 @@ describe('lint-staged', () => {
       const stdout = await gitCommit({ lintStaged: { stash: false } })
 
       expect(stdout).toMatch('Skipping backup because `--no-stash` was used')
+      expect(stdout).toMatch(
+        'Skipping hiding unstaged changes from partially staged files because `--no-stash` was used'
+      )
 
       // Nothing is wrong, so a new commit is created
       expect(await execGit(['rev-list', '--count', 'HEAD'])).toEqual('2')
@@ -46,6 +47,7 @@ describe('lint-staged', () => {
         gitCommit({
           lintStaged: {
             stash: false,
+            hidePartiallyStaged: true,
             config: {
               '*.js': async () => {
                 const testFile = path.join(cwd, 'test.js')
@@ -55,7 +57,7 @@ describe('lint-staged', () => {
             },
           },
         })
-      ).rejects.toThrowError('Unstaged changes could not be restored due to a merge conflict!')
+      ).rejects.toThrow('Unstaged changes could not be restored due to a merge conflict!')
 
       // Something was wrong so the commit was aborted
       expect(await execGit(['rev-list', '--count', 'HEAD'])).toEqual('1')
@@ -66,7 +68,7 @@ describe('lint-staged', () => {
       expect(await readFile('test.js')).toMatchInlineSnapshot(`
         "<<<<<<< ours
         module.exports = {
-          foo: \\"bar\\",
+          foo: "bar",
         };
         =======
         const obj = {
@@ -88,7 +90,7 @@ describe('lint-staged', () => {
       await execGit(['add', 'test2.js'])
 
       // Run lint-staged with --no-stash
-      await expect(gitCommit({ lintStaged: { stash: false } })).rejects.toThrowError(
+      await expect(gitCommit({ lintStaged: { stash: false } })).rejects.toThrow(
         'SyntaxError: Unexpected token'
       )
 

@@ -1,11 +1,17 @@
-import { execGit } from '../../lib/execGit.js'
-import { GitWorkflow, STASH } from '../../lib/gitWorkflow.js'
+import { jest } from '@jest/globals'
+
 import { getInitialState } from '../../lib/state.js'
 import { GetBackupStashError } from '../../lib/symbols'
 
-jest.mock('../../lib/execGit.js', () => ({
-  execGit: jest.fn(async () => ''),
+jest.unstable_mockModule('../../lib/execGit.js', () => ({
+  execGit: jest.fn(async () => {
+    /** Mock fails by default */
+    return ''
+  }),
 }))
+
+const { execGit } = await import('../../lib/execGit.js')
+const { GitWorkflow, STASH } = await import('../../lib/gitWorkflow.js')
 
 describe('gitWorkflow', () => {
   const options = { gitConfigDir: '.' }
@@ -15,7 +21,7 @@ describe('gitWorkflow', () => {
       const gitWorkflow = new GitWorkflow(options)
       const ctx = getInitialState()
 
-      await expect(gitWorkflow.getBackupStash(ctx)).rejects.toThrowError(
+      await expect(gitWorkflow.getBackupStash(ctx)).rejects.toThrow(
         'lint-staged automatic backup is missing!'
       )
 
@@ -25,10 +31,11 @@ describe('gitWorkflow', () => {
     it('should throw when stash not found even when other stashes are', async () => {
       const gitWorkflow = new GitWorkflow(options)
       const ctx = getInitialState()
+      ctx.backupHash = 'not-found'
 
-      execGit.mockResolvedValueOnce('stash@{0}: some random stuff')
+      execGit.mockResolvedValueOnce(`stash@{1}: ${STASH} (abc123)`)
 
-      await expect(gitWorkflow.getBackupStash(ctx)).rejects.toThrowError(
+      await expect(gitWorkflow.getBackupStash(ctx)).rejects.toThrow(
         'lint-staged automatic backup is missing!'
       )
 
@@ -38,56 +45,17 @@ describe('gitWorkflow', () => {
     it('should return ref to the backup stash', async () => {
       const gitWorkflow = new GitWorkflow(options)
       const ctx = getInitialState()
+      ctx.backupHash = 'abc123'
 
       execGit.mockResolvedValueOnce(
         [
           'stash@{0}: some random stuff',
-          `stash@{1}: ${STASH}`,
+          `stash@{1}: ${STASH} (${ctx.backupHash})`,
           'stash@{2}: other random stuff',
         ].join('\n')
       )
 
-      await expect(gitWorkflow.getBackupStash(ctx)).resolves.toEqual('refs/stash@{1}')
-    })
-
-    it('should return unescaped ref to the backup stash when using MSYS2 without login shell', async () => {
-      const gitWorkflow = new GitWorkflow(options)
-      const ctx = getInitialState()
-
-      process.env.MSYSTEM = 'MSYS'
-
-      execGit.mockResolvedValueOnce(
-        [
-          'stash@{0}: some random stuff',
-          `stash@{1}: ${STASH}`,
-          'stash@{2}: other random stuff',
-        ].join('\n')
-      )
-
-      await expect(gitWorkflow.getBackupStash(ctx)).resolves.toEqual('refs/stash@{1}')
-
-      delete process.env.MSYSTEM
-    })
-
-    it('should return escaped ref to the backup stash when using MSYS2 with login shell', async () => {
-      const gitWorkflow = new GitWorkflow(options)
-      const ctx = getInitialState()
-
-      process.env.MSYSTEM = 'MSYS'
-      process.env.LOGINSHELL = 'bash'
-
-      execGit.mockResolvedValueOnce(
-        [
-          'stash@{0}: some random stuff',
-          `stash@{1}: ${STASH}`,
-          'stash@{2}: other random stuff',
-        ].join('\n')
-      )
-
-      await expect(gitWorkflow.getBackupStash(ctx)).resolves.toEqual('refs/stash@\\{1\\}')
-
-      delete process.env.MSYSTEM
-      delete process.env.LOGINSHELL
+      await expect(gitWorkflow.getBackupStash(ctx)).resolves.toEqual('1')
     })
   })
 })

@@ -1,10 +1,8 @@
-import './__mocks__/resolveConfig.js'
-
 import { jest } from '@jest/globals'
 
-import { withGitIntegration } from './__utils__/withGitIntegration.js'
 import { prettyJS, uglyJS } from './__fixtures__/files.js'
 import { isWindows } from './__utils__/isWindows.js'
+import { withGitIntegration } from './__utils__/withGitIntegration.js'
 
 jest.setTimeout(20000)
 jest.retryTimes(2)
@@ -38,7 +36,7 @@ describe('lint-staged', () => {
             },
           },
         })
-      ).rejects.toThrowError(".git/index.lock': File exists")
+      ).rejects.toThrow(".git/index.lock': File exists")
 
       // Something was wrong so new commit wasn't created
       expect(await execGit(['rev-list', '--count', 'HEAD'])).toEqual('1')
@@ -47,17 +45,17 @@ describe('lint-staged', () => {
       // But local modifications are gone
       expect(await execGit(['diff'])).not.toEqual(diff)
       expect(await execGit(['diff'])).toMatchInlineSnapshot(`
-              "diff --git a/test.js b/test.js
-              index 1eff6a0..8baadc8 100644
-              --- a/test.js
-              +++ b/test.js
-              @@ -1,3 +1,3 @@
-               module.exports = {
-              -    'foo': 'bar'
-              -}
-              +  foo: \\"bar\\",
-              +};"
-          `)
+        "diff --git a/test.js b/test.js
+        index 1eff6a0..8baadc8 100644
+        --- a/test.js
+        +++ b/test.js
+        @@ -1,3 +1,3 @@
+         module.exports = {
+        -    'foo': 'bar'
+        -}
+        +  foo: "bar",
+        +};"
+      `)
 
       expect(await readFile('test.js')).not.toEqual(uglyJS + appended)
       expect(await readFile('test.js')).toEqual(prettyJS)
@@ -66,9 +64,7 @@ describe('lint-staged', () => {
       await removeFile(`.git/index.lock`)
 
       // Luckily there is a stash
-      expect(await execGit(['stash', 'list'])).toMatchInlineSnapshot(
-        `"stash@{0}: lint-staged automatic backup"`
-      )
+      expect(await execGit(['stash', 'list'])).toMatch('stash@{0}: lint-staged automatic backup')
       await execGit(['reset', '--hard'])
       await execGit(['stash', 'pop', '--index'])
 

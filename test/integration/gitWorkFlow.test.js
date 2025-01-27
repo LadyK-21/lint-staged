@@ -1,32 +1,36 @@
-import './__mocks__/resolveConfig.js'
-
 import path from 'node:path'
 
-import { jest as jestGlobals } from '@jest/globals'
+import { jest } from '@jest/globals'
 
-import { writeFile } from '../../lib/file.js'
 import { GitWorkflow } from '../../lib/gitWorkflow.js'
 import { getInitialState } from '../../lib/state.js'
-
+import {
+  GetBackupStashError,
+  GitError,
+  HideUnstagedChangesError,
+  RestoreMergeStatusError,
+} from '../../lib/symbols.js'
 import { normalizeWindowsNewlines } from './__utils__/normalizeWindowsNewlines.js'
 import { withGitIntegration } from './__utils__/withGitIntegration.js'
 
-jestGlobals.mock('../../lib/file.js', () => {
-  return {
-    // notice `jestGlobals` vs `jest` here... this will be changed with `jest.unstable_mockModule`
-    writeFile: jest.fn(() => Promise.resolve()),
-  }
-})
+jest.unstable_mockModule('../../lib/file.js', () => ({
+  writeFile: jest.fn(() => Promise.resolve()),
+}))
 
-jestGlobals.setTimeout(20000)
-jestGlobals.retryTimes(2)
+const { writeFile } = await import('../../lib/file.js')
+
+jest.setTimeout(20000)
+jest.retryTimes(2)
 
 describe('gitWorkflow', () => {
   describe('prepare', () => {
     it(
       'should handle errors',
       withGitIntegration(async ({ cwd }) => {
-        const gitWorkflow = new GitWorkflow({ gitDir: cwd, gitConfigDir: path.join(cwd, './.git') })
+        const gitWorkflow = new GitWorkflow({
+          topLevelDir: cwd,
+          gitConfigDir: path.join(cwd, './.git'),
+        })
 
         jest.doMock('execa', () => Promise.reject({}))
         const ctx = getInitialState()
@@ -38,23 +42,9 @@ describe('gitWorkflow', () => {
         await expect(gitWorkflow.prepare(ctx, false)).rejects.toThrowErrorMatchingInlineSnapshot(
           `"test"`
         )
-        expect(ctx).toMatchInlineSnapshot(`
-          Object {
-            "errors": Set {
-              Symbol(GitError),
-            },
-            "events": EventEmitter {
-              "_events": Object {},
-              "_eventsCount": 0,
-              "_maxListeners": undefined,
-              Symbol(kCapture): false,
-            },
-            "hasPartiallyStagedFiles": true,
-            "output": Array [],
-            "quiet": false,
-            "shouldBackup": null,
-          }
-        `)
+
+        expect(ctx.errors).toBeInstanceOf(Set)
+        expect(ctx.errors.has(GitError)).toBe(true)
       })
     )
   })
@@ -63,30 +53,19 @@ describe('gitWorkflow', () => {
     it(
       'should handle errors',
       withGitIntegration(async ({ cwd }) => {
-        const gitWorkflow = new GitWorkflow({ gitDir: cwd, gitConfigDir: path.join(cwd, './.git') })
+        const gitWorkflow = new GitWorkflow({
+          topLevelDir: cwd,
+          gitConfigDir: path.join(cwd, './.git'),
+        })
 
         const ctx = getInitialState()
         await expect(gitWorkflow.cleanup(ctx)).rejects.toThrowErrorMatchingInlineSnapshot(
           `"lint-staged automatic backup is missing!"`
         )
-        expect(ctx).toMatchInlineSnapshot(`
-          Object {
-            "errors": Set {
-              Symbol(GetBackupStashError),
-              Symbol(GitError),
-            },
-            "events": EventEmitter {
-              "_events": Object {},
-              "_eventsCount": 0,
-              "_maxListeners": undefined,
-              Symbol(kCapture): false,
-            },
-            "hasPartiallyStagedFiles": null,
-            "output": Array [],
-            "quiet": false,
-            "shouldBackup": null,
-          }
-        `)
+
+        expect(ctx.errors).toBeInstanceOf(Set)
+        expect(ctx.errors.has(GetBackupStashError)).toBe(true)
+        expect(ctx.errors.has(GitError)).toBe(true)
       })
     )
   })
@@ -96,7 +75,7 @@ describe('gitWorkflow', () => {
       'should return unquoted files',
       withGitIntegration(async ({ appendFile, cwd, execGit }) => {
         const gitWorkflow = new GitWorkflow({
-          gitDir: cwd,
+          topLevelDir: cwd,
           gitConfigDir: path.join(cwd, './.git'),
         })
         await appendFile('file with spaces.txt', 'staged content')
@@ -116,7 +95,10 @@ describe('gitWorkflow', () => {
     it(
       'should include to and from for renamed files',
       withGitIntegration(async ({ appendFile, cwd, execGit }) => {
-        const gitWorkflow = new GitWorkflow({ gitDir: cwd, gitConfigDir: path.join(cwd, './.git') })
+        const gitWorkflow = new GitWorkflow({
+          topLevelDir: cwd,
+          gitConfigDir: path.join(cwd, './.git'),
+        })
 
         await appendFile('original.txt', 'test content')
         await execGit(['add', 'original.txt'])
@@ -135,39 +117,31 @@ describe('gitWorkflow', () => {
     it(
       'should handle errors',
       withGitIntegration(async ({ cwd }) => {
-        const gitWorkflow = new GitWorkflow({ gitDir: cwd, gitConfigDir: path.join(cwd, './.git') })
+        const gitWorkflow = new GitWorkflow({
+          topLevelDir: cwd,
+          gitConfigDir: path.join(cwd, './.git'),
+        })
 
         const totallyRandom = `totally_random_file-${Date.now().toString()}`
         gitWorkflow.partiallyStagedFiles = [totallyRandom]
         const ctx = getInitialState()
-        await expect(gitWorkflow.hideUnstagedChanges(ctx)).rejects.toThrowError(
+        await expect(gitWorkflow.hideUnstagedChanges(ctx)).rejects.toThrow(
           `pathspec '${totallyRandom}' did not match any file(s) known to git`
         )
-        expect(ctx).toMatchInlineSnapshot(`
-          Object {
-            "errors": Set {
-              Symbol(GitError),
-              Symbol(HideUnstagedChangesError),
-            },
-            "events": EventEmitter {
-              "_events": Object {},
-              "_eventsCount": 0,
-              "_maxListeners": undefined,
-              Symbol(kCapture): false,
-            },
-            "hasPartiallyStagedFiles": null,
-            "output": Array [],
-            "quiet": false,
-            "shouldBackup": null,
-          }
-        `)
+
+        expect(ctx.errors).toBeInstanceOf(Set)
+        expect(ctx.errors.has(HideUnstagedChangesError)).toBe(true)
+        expect(ctx.errors.has(GitError)).toBe(true)
       })
     )
 
     it(
       'should checkout renamed file when hiding changes',
       withGitIntegration(async ({ appendFile, cwd, execGit, readFile }) => {
-        const gitWorkflow = new GitWorkflow({ gitDir: cwd, gitConfigDir: path.join(cwd, './.git') })
+        const gitWorkflow = new GitWorkflow({
+          topLevelDir: cwd,
+          gitConfigDir: path.join(cwd, './.git'),
+        })
 
         const origContent = await readFile('README.md')
         await execGit(['mv', 'README.md', 'TEST.md'])
@@ -187,7 +161,10 @@ describe('gitWorkflow', () => {
     it(
       'should handle error when restoring merge state fails',
       withGitIntegration(async ({ cwd }) => {
-        const gitWorkflow = new GitWorkflow({ gitDir: cwd, gitConfigDir: path.join(cwd, './.git') })
+        const gitWorkflow = new GitWorkflow({
+          topLevelDir: cwd,
+          gitConfigDir: path.join(cwd, './.git'),
+        })
 
         gitWorkflow.mergeHeadBuffer = true
         writeFile.mockImplementation(() => Promise.reject('test'))
@@ -197,24 +174,10 @@ describe('gitWorkflow', () => {
         ).rejects.toThrowErrorMatchingInlineSnapshot(
           `"Merge state could not be restored due to an error!"`
         )
-        expect(ctx).toMatchInlineSnapshot(`
-          Object {
-            "errors": Set {
-              Symbol(GitError),
-              Symbol(RestoreMergeStatusError),
-            },
-            "events": EventEmitter {
-              "_events": Object {},
-              "_eventsCount": 0,
-              "_maxListeners": undefined,
-              Symbol(kCapture): false,
-            },
-            "hasPartiallyStagedFiles": null,
-            "output": Array [],
-            "quiet": false,
-            "shouldBackup": null,
-          }
-        `)
+
+        expect(ctx.errors).toBeInstanceOf(Set)
+        expect(ctx.errors.has(GitError)).toBe(true)
+        expect(ctx.errors.has(RestoreMergeStatusError)).toBe(true)
       })
     )
   })
