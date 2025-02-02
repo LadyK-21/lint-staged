@@ -2,10 +2,11 @@ import { constants } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { jest } from '@jest/globals'
 import makeConsoleMock from 'consolemock'
 
-import { validateOptions } from '../../lib/validateOptions.js'
 import { InvalidOptionsError } from '../../lib/symbols.js'
+import { validateOptions } from '../../lib/validateOptions.js'
 
 describe('validateOptions', () => {
   const mockAccess = jest.spyOn(fs, 'access')
@@ -58,7 +59,7 @@ describe('validateOptions', () => {
 
       const logger = makeConsoleMock()
 
-      await expect(validateOptions({ cwd: 'non_existent' }, logger)).rejects.toThrowError(
+      await expect(validateOptions({ cwd: 'non_existent' }, logger)).rejects.toThrow(
         InvalidOptionsError
       )
 
@@ -68,16 +69,14 @@ describe('validateOptions', () => {
         constants.F_OK
       )
 
+      // eslint-disable-next-line jest/no-interpolation-in-snapshots
       expect(logger.printHistory()).toMatchInlineSnapshot(`
         "
         ERROR ✖ Validation Error:
 
           Invalid value for option 'cwd': non_existent
 
-          ENOENT: no such file or directory, access '${path
-            .join(process.cwd(), 'non_existent')
-            // Windows test fix: D:\something -> D:\\something
-            .replace(/\\/g, '\\\\')}'
+          ENOENT: no such file or directory, access '${path.join(process.cwd(), 'non_existent')}'
 
         See https://github.com/okonet/lint-staged#command-line-flags"
       `)
@@ -107,7 +106,7 @@ describe('validateOptions', () => {
 
       mockAccess.mockImplementationOnce(() => Promise.reject(new Error('Failed')))
 
-      await expect(validateOptions({ shell: '/bin/sh' }, logger)).rejects.toThrowError(
+      await expect(validateOptions({ shell: '/bin/sh' }, logger)).rejects.toThrow(
         InvalidOptionsError
       )
 

@@ -2,19 +2,14 @@ name: Security Analysis
 
 on:
   push:
-    # Run on pushes to specific branches
     branches:
-      - "*"
-    # Do not run on tags
-    tags-ignore:
-      - "*"
-  pull_request:
-    # Run on to branches with an open PR
-    branches:
-      - "*"
+      - master
   schedule:
-    # At 00:00 on Monday.
-    - cron: '0 0 * * 1'
+    - cron: '0 0 * * 1' # 00:00 on Monday.
+  workflow_call:
+  pull_request:
+    branches:
+      - master
 
 jobs:
   CodeQL:
@@ -22,8 +17,8 @@ jobs:
     permissions:
       security-events: write
     steps:
-      - uses: actions/checkout@v2
-      - uses: github/codeql-action/init@v1
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
         with:
           languages: javascript
-      - uses: github/codeql-action/analyze@v1
+      - uses: github/codeql-action/analyze@v3

@@ -1,27 +1,23 @@
-import { execa, execaCommand } from 'execa'
-import pidTree from 'pidtree'
+import { jest } from '@jest/globals'
 
-import { resolveTaskFn } from '../../lib/resolveTaskFn.js'
 import { getInitialState } from '../../lib/state.js'
 import { TaskError } from '../../lib/symbols.js'
-
+import { getMockExeca } from './__utils__/getMockExeca.js'
 import { mockExecaReturnValue } from './__utils__/mockExecaReturnValue.js'
+
+const { execa, execaCommand } = await getMockExeca()
+
+jest.unstable_mockModule('pidtree', () => ({
+  default: jest.fn(async () => []),
+}))
+
+const { default: pidTree } = await import('pidtree')
+
+const { resolveTaskFn } = await import('../../lib/resolveTaskFn.js')
 
 jest.useFakeTimers()
 
-jest.mock('execa', () => ({
-  execa: jest.fn(() => mockExecaReturnValue()),
-  execaCommand: jest.fn(() => mockExecaReturnValue()),
-}))
-
-jest.mock('pidtree', () => jest.fn(async () => []))
-
 const defaultOpts = { files: ['test.js'] }
-
-const mockExecaImplementationOnce = (value) => {
-  execa.mockImplementationOnce(() => mockExecaReturnValue(value))
-  execaCommand.mockImplementationOnce(() => mockExecaReturnValue(value))
-}
 
 describe('resolveTaskFn', () => {
   beforeEach(() => {
@@ -38,11 +34,12 @@ describe('resolveTaskFn', () => {
 
     await taskFn()
     expect(execa).toHaveBeenCalledTimes(1)
-    expect(execa).lastCalledWith('node', ['--arg=true', './myscript.js', 'test.js'], {
+    expect(execa).toHaveBeenLastCalledWith('node', ['--arg=true', './myscript.js', 'test.js'], {
       cwd: process.cwd(),
       preferLocal: true,
       reject: false,
       shell: false,
+      stdin: 'ignore',
     })
   })
 
@@ -56,11 +53,12 @@ describe('resolveTaskFn', () => {
 
     await taskFn()
     expect(execa).toHaveBeenCalledTimes(1)
-    expect(execa).lastCalledWith('node', ['--arg=true', './myscript.js', 'test.js'], {
+    expect(execa).toHaveBeenLastCalledWith('node', ['--arg=true', './myscript.js', 'test.js'], {
       cwd: process.cwd(),
       preferLocal: true,
       reject: false,
       shell: false,
+      stdin: 'ignore',
     })
   })
 
@@ -75,11 +73,12 @@ describe('resolveTaskFn', () => {
 
     await taskFn()
     expect(execaCommand).toHaveBeenCalledTimes(1)
-    expect(execaCommand).lastCalledWith('node --arg=true ./myscript.js test.js', {
+    expect(execaCommand).toHaveBeenLastCalledWith('node --arg=true ./myscript.js test.js', {
       cwd: process.cwd(),
       preferLocal: true,
       reject: false,
       shell: true,
+      stdin: 'ignore',
     })
   })
 
@@ -93,11 +92,12 @@ describe('resolveTaskFn', () => {
 
     await taskFn()
     expect(execaCommand).toHaveBeenCalledTimes(1)
-    expect(execaCommand).lastCalledWith('node --arg=true ./myscript.js test.js', {
+    expect(execaCommand).toHaveBeenLastCalledWith('node --arg=true ./myscript.js test.js', {
       cwd: process.cwd(),
       preferLocal: true,
       reject: false,
       shell: true,
+      stdin: 'ignore',
     })
   })
 
@@ -111,55 +111,82 @@ describe('resolveTaskFn', () => {
 
     await taskFn()
     expect(execaCommand).toHaveBeenCalledTimes(1)
-    expect(execaCommand).lastCalledWith('node --arg=true ./myscript.js test.js', {
+    expect(execaCommand).toHaveBeenLastCalledWith('node --arg=true ./myscript.js test.js', {
       cwd: process.cwd(),
       preferLocal: true,
       reject: false,
       shell: '/bin/bash',
+      stdin: 'ignore',
     })
   })
 
-  it('should pass `gitDir` as `cwd` to `execa()` gitDir !== process.cwd for git commands', async () => {
+  it('shell should work with spaces in file paths', async () => {
+    expect.assertions(2)
+    const taskFn = resolveTaskFn({
+      shell: true,
+      command: 'node --arg=true ./myscript.js',
+      files: ['test file.js', 'file with/multiple spaces.js'],
+    })
+
+    await taskFn()
+    expect(execaCommand).toHaveBeenCalledTimes(1)
+    expect(execaCommand).toHaveBeenLastCalledWith(
+      'node --arg=true ./myscript.js test\\ file.js file\\ with/multiple\\ spaces.js',
+      {
+        cwd: process.cwd(),
+        preferLocal: true,
+        reject: false,
+        shell: true,
+        stdin: 'ignore',
+      }
+    )
+  })
+
+  it('should pass `topLevelDir` as `cwd` to `execa()` topLevelDir !== process.cwd for git commands', async () => {
     expect.assertions(2)
     const taskFn = resolveTaskFn({
       ...defaultOpts,
       command: 'git diff',
-      gitDir: '../',
+      topLevelDir: '../',
     })
 
     await taskFn()
     expect(execa).toHaveBeenCalledTimes(1)
-    expect(execa).lastCalledWith('git', ['diff', 'test.js'], {
+    expect(execa).toHaveBeenLastCalledWith('git', ['diff', 'test.js'], {
       cwd: '../',
       preferLocal: true,
       reject: false,
       shell: false,
+      stdin: 'ignore',
     })
   })
 
-  it('should not pass `gitDir` as `cwd` to `execa()` if a non-git binary is called', async () => {
+  it('should not pass `topLevelDir` as `cwd` to `execa()` if a non-git binary is called', async () => {
     expect.assertions(2)
-    const taskFn = resolveTaskFn({ ...defaultOpts, command: 'jest', gitDir: '../' })
+    const taskFn = resolveTaskFn({ ...defaultOpts, command: 'jest', topLevelDir: '../' })
 
     await taskFn()
     expect(execa).toHaveBeenCalledTimes(1)
-    expect(execa).lastCalledWith('jest', ['test.js'], {
+    expect(execa).toHaveBeenLastCalledWith('jest', ['test.js'], {
       cwd: process.cwd(),
       preferLocal: true,
       reject: false,
       shell: false,
+      stdin: 'ignore',
     })
   })
 
-  it('should throw error for failed linters', async () => {
+  it('should throw error for failed tasks', async () => {
     expect.assertions(1)
-    mockExecaImplementationOnce({
-      stdout: 'Mock error',
-      stderr: '',
-      code: 0,
-      failed: true,
-      cmd: 'mock cmd',
-    })
+    execa.mockReturnValueOnce(
+      mockExecaReturnValue({
+        stdout: 'Mock error',
+        stderr: '',
+        code: 0,
+        failed: true,
+        cmd: 'mock cmd',
+      })
+    )
 
     const taskFn = resolveTaskFn({ ...defaultOpts, command: 'mock-fail-linter' })
     await expect(taskFn()).rejects.toThrowErrorMatchingInlineSnapshot(`"mock-fail-linter [FAILED]"`)
@@ -167,15 +194,17 @@ describe('resolveTaskFn', () => {
 
   it('should throw error for interrupted processes', async () => {
     expect.assertions(1)
-    mockExecaImplementationOnce({
-      stdout: 'Mock error',
-      stderr: '',
-      code: 0,
-      failed: false,
-      killed: false,
-      signal: 'SIGINT',
-      cmd: 'mock cmd',
-    })
+    execa.mockReturnValueOnce(
+      mockExecaReturnValue({
+        stdout: 'Mock error',
+        stderr: '',
+        code: 0,
+        failed: false,
+        killed: false,
+        signal: 'SIGINT',
+        cmd: 'mock cmd',
+      })
+    )
 
     const taskFn = resolveTaskFn({ ...defaultOpts, command: 'mock-killed-linter' })
     await expect(taskFn()).rejects.toThrowErrorMatchingInlineSnapshot(
@@ -185,15 +214,17 @@ describe('resolveTaskFn', () => {
 
   it('should throw error for killed processes without signal', async () => {
     expect.assertions(1)
-    mockExecaImplementationOnce({
-      stdout: 'Mock error',
-      stderr: '',
-      code: 0,
-      failed: false,
-      killed: true,
-      signal: undefined,
-      cmd: 'mock cmd',
-    })
+    execa.mockReturnValueOnce(
+      mockExecaReturnValue({
+        stdout: 'Mock error',
+        stderr: '',
+        code: 0,
+        failed: false,
+        killed: true,
+        signal: undefined,
+        cmd: 'mock cmd',
+      })
+    )
 
     const taskFn = resolveTaskFn({ ...defaultOpts, command: 'mock-killed-linter' })
     await expect(taskFn()).rejects.toThrowErrorMatchingInlineSnapshot(
@@ -204,19 +235,22 @@ describe('resolveTaskFn', () => {
   it('should not add TaskError if no error occur', async () => {
     expect.assertions(1)
     const context = getInitialState()
-    const taskFn = resolveTaskFn({ ...defaultOpts, command: 'jest', gitDir: '../' })
+    const taskFn = resolveTaskFn({ ...defaultOpts, command: 'jest', topLevelDir: '../' })
     await taskFn(context)
     expect(context.errors.has(TaskError)).toEqual(false)
   })
 
   it('should add TaskError on error', async () => {
-    mockExecaImplementationOnce({
-      stdout: 'Mock error',
-      stderr: '',
-      code: 0,
-      failed: true,
-      cmd: 'mock cmd',
-    })
+    execa.mockReturnValueOnce(
+      mockExecaReturnValue({
+        stdout: 'Mock error',
+        stderr: '',
+        code: 0,
+        failed: true,
+        cmd: 'mock cmd',
+      })
+    )
+
     const context = getInitialState()
     const taskFn = resolveTaskFn({ ...defaultOpts, command: 'mock-fail-linter' })
     expect.assertions(2)
@@ -228,140 +262,96 @@ describe('resolveTaskFn', () => {
 
   it('should not add output when there is none', async () => {
     expect.assertions(2)
-    mockExecaImplementationOnce({
-      stdout: '',
-      stderr: '',
-      code: 0,
-      failed: false,
-      killed: false,
-      signal: undefined,
-      cmd: 'mock cmd',
-    })
+    execa.mockReturnValueOnce(
+      mockExecaReturnValue({
+        stdout: '',
+        stderr: '',
+        code: 0,
+        failed: false,
+        killed: false,
+        signal: undefined,
+        cmd: 'mock cmd',
+      })
+    )
 
     const taskFn = resolveTaskFn({ ...defaultOpts, command: 'mock cmd', verbose: true })
     const context = getInitialState()
     await expect(taskFn(context)).resolves.toMatchInlineSnapshot(`undefined`)
-    expect(context).toMatchInlineSnapshot(`
-      Object {
-        "errors": Set {},
-        "events": EventEmitter {
-          "_events": Object {},
-          "_eventsCount": 0,
-          "_maxListeners": undefined,
-          Symbol(kCapture): false,
-        },
-        "hasPartiallyStagedFiles": null,
-        "output": Array [],
-        "quiet": false,
-        "shouldBackup": null,
-      }
-    `)
+
+    expect(context.output).toEqual([])
   })
 
   it('should add output even when task succeeds if `verbose: true`', async () => {
     expect.assertions(2)
-    mockExecaImplementationOnce({
-      stdout: 'Mock success',
-      stderr: '',
-      code: 0,
-      failed: false,
-      killed: false,
-      signal: undefined,
-      cmd: 'mock cmd',
-    })
+    execa.mockReturnValueOnce(
+      mockExecaReturnValue({
+        stdout: 'Mock success',
+        stderr: '',
+        code: 0,
+        failed: false,
+        killed: false,
+        signal: undefined,
+        cmd: 'mock cmd',
+      })
+    )
 
     const taskFn = resolveTaskFn({ ...defaultOpts, command: 'mock cmd', verbose: true })
     const context = getInitialState()
     await expect(taskFn(context)).resolves.toMatchInlineSnapshot(`undefined`)
-    expect(context).toMatchInlineSnapshot(`
-      Object {
-        "errors": Set {},
-        "events": EventEmitter {
-          "_events": Object {},
-          "_eventsCount": 0,
-          "_maxListeners": undefined,
-          Symbol(kCapture): false,
-        },
-        "hasPartiallyStagedFiles": null,
-        "output": Array [
-          "
+
+    expect(context.output).toMatchInlineSnapshot(`
+      [
+        "
       → mock cmd:
       Mock success",
-        ],
-        "quiet": false,
-        "shouldBackup": null,
-      }
+      ]
     `)
   })
 
   it('should not add title to output when task errors while quiet', async () => {
     expect.assertions(2)
-    mockExecaImplementationOnce({
-      stdout: '',
-      stderr: 'stderr',
-      code: 1,
-      failed: true,
-      killed: false,
-      signal: undefined,
-      cmd: 'mock cmd',
-    })
+    execa.mockReturnValueOnce(
+      mockExecaReturnValue({
+        stdout: '',
+        stderr: 'stderr',
+        code: 1,
+        failed: true,
+        killed: false,
+        signal: undefined,
+        cmd: 'mock cmd',
+      })
+    )
 
     const taskFn = resolveTaskFn({ ...defaultOpts, command: 'mock cmd' })
     const context = getInitialState({ quiet: true })
     await expect(taskFn(context)).rejects.toThrowErrorMatchingInlineSnapshot(`"mock cmd [1]"`)
-    expect(context).toMatchInlineSnapshot(`
-      Object {
-        "errors": Set {
-          Symbol(TaskError),
-        },
-        "events": EventEmitter {
-          "_events": Object {},
-          "_eventsCount": 0,
-          "_maxListeners": undefined,
-          Symbol(kCapture): false,
-        },
-        "hasPartiallyStagedFiles": null,
-        "output": Array [
-          "stderr",
-        ],
-        "quiet": true,
-        "shouldBackup": null,
-      }
+
+    expect(context.output).toMatchInlineSnapshot(`
+      [
+        "stderr",
+      ]
     `)
   })
 
   it('should not print anything when task errors without output while quiet', async () => {
     expect.assertions(2)
-    mockExecaImplementationOnce({
-      stdout: '',
-      stderr: '',
-      code: 1,
-      failed: true,
-      killed: false,
-      signal: undefined,
-      cmd: 'mock cmd',
-    })
+    execa.mockReturnValueOnce(
+      mockExecaReturnValue({
+        stdout: '',
+        stderr: '',
+        code: 1,
+        failed: true,
+        killed: false,
+        signal: undefined,
+        cmd: 'mock cmd',
+      })
+    )
 
     const taskFn = resolveTaskFn({ ...defaultOpts, command: 'mock cmd' })
     const context = getInitialState({ quiet: true })
     await expect(taskFn(context)).rejects.toThrowErrorMatchingInlineSnapshot(`"mock cmd [1]"`)
-    expect(context).toMatchInlineSnapshot(`
-      Object {
-        "errors": Set {
-          Symbol(TaskError),
-        },
-        "events": EventEmitter {
-          "_events": Object {},
-          "_eventsCount": 0,
-          "_maxListeners": undefined,
-          Symbol(kCapture): false,
-        },
-        "hasPartiallyStagedFiles": null,
-        "output": Array [],
-        "quiet": true,
-        "shouldBackup": null,
-      }
-    `)
+
+    expect(context.output).toEqual([])
   })
 
   it('should not kill long running tasks without errors in context', async () => {

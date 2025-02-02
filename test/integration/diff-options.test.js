@@ -1,12 +1,9 @@
-import './__mocks__/resolveConfig.js'
-
 import { jest } from '@jest/globals'
 import makeConsoleMock from 'consolemock'
 
 import lintStaged from '../../lib/index.js'
-
-import { withGitIntegration } from './__utils__/withGitIntegration.js'
 import * as fileFixtures from './__fixtures__/files.js'
+import { withGitIntegration } from './__utils__/withGitIntegration.js'
 
 jest.setTimeout(20000)
 jest.retryTimes(2)
@@ -31,7 +28,6 @@ describe('lint-staged', () => {
       const passed = await lintStaged({
         config: { '*.js': 'prettier --list-different' },
         cwd,
-        debug: true,
         diff: `${hashes[1]}...${hashes[0]}`,
         stash: false,
       })

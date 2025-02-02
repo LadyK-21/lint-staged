@@ -1,12 +1,10 @@
-import './__mocks__/resolveConfig.js'
-
 import { jest } from '@jest/globals'
 
-import { normalizeWindowsNewlines } from './__utils__/normalizeWindowsNewlines.js'
-import { addConfigFileSerializer } from './__utils__/addConfigFileSerializer.js'
-import { withGitIntegration } from './__utils__/withGitIntegration.js'
-import * as fileFixtures from './__fixtures__/files.js'
 import * as configFixtures from './__fixtures__/configs.js'
+import * as fileFixtures from './__fixtures__/files.js'
+import { addConfigFileSerializer } from './__utils__/addConfigFileSerializer.js'
+import { normalizeWindowsNewlines } from './__utils__/normalizeWindowsNewlines.js'
+import { withGitIntegration } from './__utils__/withGitIntegration.js'
 
 jest.setTimeout(20000)
 jest.retryTimes(2)
@@ -29,9 +27,9 @@ describe('lint-staged', () => {
 
       const output = await gitCommit()
 
-      expect(output).toMatch('[SUCCESS] Hiding unstaged changes to partially staged files...')
-      expect(output).toMatch('[SUCCESS] Applying modifications from tasks...')
-      expect(output).toMatch('[SUCCESS] Restoring unstaged changes to partially staged files...')
+      expect(output).toMatch('Hiding unstaged changes to partially staged files...')
+      expect(output).toMatch('Applying modifications from tasks...')
+      expect(output).toMatch('Restoring unstaged changes to partially staged files...')
 
       // Nothing is wrong, so a new commit is created and file is pretty
       expect(await execGit(['rev-list', '--count', 'HEAD'])).toEqual('2')
@@ -101,7 +99,7 @@ describe('lint-staged', () => {
       const status = await execGit(['status'])
 
       // Run lint-staged with `prettier --list-different` to break the linter
-      await expect(gitCommit(configFixtures.prettierListDifferent)).rejects.toThrowError(
+      await expect(gitCommit(configFixtures.prettierListDifferent)).rejects.toThrow(
         'Reverting to original state because of errors'
       )
 
@@ -127,9 +125,7 @@ describe('lint-staged', () => {
       await appendFile('test.js', appended)
       const status = await execGit(['status'])
 
-      await expect(gitCommit()).rejects.toThrowError(
-        'Reverting to original state because of errors'
-      )
+      await expect(gitCommit()).rejects.toThrow('Reverting to original state because of errors')
 
       // Something was wrong so the repo is returned to original state
       expect(await execGit(['rev-list', '--count', 'HEAD'])).toEqual('1')

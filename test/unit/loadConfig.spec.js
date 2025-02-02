@@ -1,27 +1,14 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+import { jest } from '@jest/globals'
 import makeConsoleMock from 'consolemock'
 
 import { loadConfig } from '../../lib/loadConfig.js'
+import { createTempDir } from '../__utils__/createTempDir.js'
 
-/** Unfortunately necessary due to non-ESM tests. */
-jest.mock('../../lib/resolveConfig.js', () => ({
-  resolveConfig: (configPath) => {
-    try {
-      return require.resolve(configPath)
-    } catch {
-      return configPath
-    }
-  },
-}))
-
-/**
- * This converts paths into `file://` urls, but this doesn't
- * work with `import()` when using babel + jest.
- */
-jest.mock('node:url', () => ({
-  pathToFileURL: (path) => path,
-}))
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 describe('loadConfig', () => {
   const logger = makeConsoleMock()
@@ -39,7 +26,7 @@ describe('loadConfig', () => {
     )
 
     expect(config).toMatchInlineSnapshot(`
-      Object {
+      {
         "*": "mytask",
       }
     `)
@@ -54,22 +41,67 @@ describe('loadConfig', () => {
     )
 
     expect(config).toMatchInlineSnapshot(`
-      Object {
+      {
         "*": "mytask",
       }
     `)
   })
 
-  it('should load CommonJS config file from absolute path', async () => {
+  it('should not return config when YAML config file is invalid', async () => {
+    expect.assertions(2)
+
+    const { config } = await loadConfig(
+      { configPath: path.join(__dirname, '__mocks__', 'invalid-config-file.yml') },
+      logger
+    )
+
+    expect(logger.printHistory()).toMatch('Failed to read config from file')
+
+    expect(config).toBeUndefined()
+  })
+
+  it('should load advanced config from absolute .js filepath', async () => {
     expect.assertions(1)
 
     const { config } = await loadConfig(
-      { configPath: path.join(__dirname, '__mocks__', 'advanced-config.js') },
+      { configPath: path.join(__dirname, '__mocks__', 'advanced-esm-config.js') },
       logger
     )
 
     expect(config).toMatchInlineSnapshot(`
-      Object {
+      {
+        "*.css": [Function],
+        "*.js": [Function],
+      }
+    `)
+  })
+
+  it('should load advanced config file from relative .js filepath', async () => {
+    expect.assertions(1)
+
+    const { config } = await loadConfig(
+      { configPath: path.join('test', 'unit', '__mocks__', 'advanced-esm-config.js') },
+      logger
+    )
+
+    expect(config).toMatchInlineSnapshot(`
+      {
+        "*.css": [Function],
+        "*.js": [Function],
+      }
+    `)
+  })
+
+  it('should load CommonJS config from absolute .cjs file', async () => {
+    expect.assertions(1)
+
+    const { config } = await loadConfig(
+      { configPath: path.join(__dirname, '__mocks__', 'advanced-cjs-config.cjs') },
+      logger
+    )
+
+    expect(config).toMatchInlineSnapshot(`
+      {
         "*.css": [Function],
         "*.js": [Function],
       }
@@ -80,28 +112,28 @@ describe('loadConfig', () => {
     expect.assertions(1)
 
     const { config } = await loadConfig(
-      { configPath: path.join('test', 'unit', '__mocks__', 'advanced-config.js') },
+      { configPath: path.join('test', 'unit', '__mocks__', 'advanced-cjs-config.cjs') },
       logger
     )
 
     expect(config).toMatchInlineSnapshot(`
-      Object {
+      {
         "*.css": [Function],
         "*.js": [Function],
       }
     `)
   })
 
-  it('should load CommonJS config file from .cjs file', async () => {
+  it('should load CommonJS from relative .cjs file', async () => {
     expect.assertions(1)
 
     const { config } = await loadConfig(
-      { configPath: path.join('test', 'unit', '__mocks__', 'my-config.cjs') },
+      { configPath: path.join('test', 'unit', '__mocks__', 'cjs', 'my-config.cjs') },
       logger
     )
 
     expect(config).toMatchInlineSnapshot(`
-      Object {
+      {
         "*": "mytask",
       }
     `)
@@ -113,14 +145,13 @@ describe('loadConfig', () => {
     const { config } = await loadConfig(
       {
         configPath: path.join('test', 'unit', '__mocks__', 'esm-config.mjs'),
-        debug: true,
         quiet: true,
       },
       logger
     )
 
     expect(config).toMatchInlineSnapshot(`
-      Object {
+      {
         "*": "mytask",
       }
     `)
@@ -132,14 +163,13 @@ describe('loadConfig', () => {
     const { config } = await loadConfig(
       {
         configPath: path.join('test', 'unit', '__mocks__', 'esm-config-in-js.js'),
-        debug: true,
         quiet: true,
       },
       logger
     )
 
     expect(config).toMatchInlineSnapshot(`
-      Object {
+      {
         "*": "mytask",
       }
     `)
@@ -151,12 +181,12 @@ describe('loadConfig', () => {
     jest.mock('my-lint-staged-config')
 
     const { config } = await loadConfig(
-      { configPath: 'my-lint-staged-config', quiet: true, debug: true },
+      { configPath: 'my-lint-staged-config', quiet: true },
       logger
     )
 
     expect(config).toMatchInlineSnapshot(`
-      Object {
+      {
         "*": "mytask",
       }
     `)
@@ -167,7 +197,7 @@ describe('loadConfig', () => {
 
     const result = await loadConfig({ cwd: '/' })
 
-    expect(result).toMatchInlineSnapshot(`Object {}`)
+    expect(result).toMatchInlineSnapshot(`{}`)
   })
 
   it('should return empty object when explicit config file is not found', async () => {
@@ -175,6 +205,169 @@ describe('loadConfig', () => {
 
     const result = await loadConfig({ configPath: 'fake-config-file.yml' }, logger)
 
-    expect(result).toMatchInlineSnapshot(`Object {}`)
+    expect(result).toMatchInlineSnapshot(`{}`)
+  })
+
+  it('should return empty object ".lintstagedrc.json" file is invalid', async () => {
+    expect.assertions(1)
+
+    const result = await loadConfig(
+      { configPath: path.join(__dirname, '__mocks__', 'invalid-json-config.json') },
+      logger
+    )
+
+    expect(result).toMatchInlineSnapshot(`{}`)
+  })
+
+  it('should read config from package.json', async () => {
+    const tempDir = await createTempDir()
+    const configPath = path.join(tempDir, 'package.json')
+
+    try {
+      expect.assertions(1)
+
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          'lint-staged': {
+            '*': 'mytask',
+          },
+        })
+      )
+
+      const { config } = await loadConfig({ configPath }, logger)
+
+      expect(config).toMatchInlineSnapshot(`
+      {
+        "*": "mytask",
+      }
+  `)
+    } finally {
+      await fs.rm(tempDir, { recursive: true })
+    }
+  })
+
+  it('should not return config when package.json file is invalid', async () => {
+    const tempDir = await createTempDir()
+    const configPath = path.join(tempDir, 'package.json')
+
+    try {
+      expect.assertions(1)
+
+      await fs.writeFile(configPath, '{')
+
+      const { config } = await loadConfig({ configPath }, logger)
+
+      expect(config).toBeNull()
+    } finally {
+      await fs.rm(tempDir, { recursive: true })
+    }
+  })
+
+  it('should read "lint-staged" key from package.yaml', async () => {
+    const tempDir = await createTempDir()
+    const configPath = path.join(tempDir, 'package.yaml')
+
+    try {
+      expect.assertions(1)
+
+      await fs.writeFile(
+        configPath,
+        `lint-staged:
+            "*": mytask
+        `
+      )
+
+      const { config } = await loadConfig({ configPath }, logger)
+
+      expect(config).toMatchInlineSnapshot(`
+        {
+          "*": "mytask",
+        }
+      `)
+    } finally {
+      await fs.rm(tempDir, { recursive: true })
+    }
+  })
+
+  it('should read "lint-staged" key from package.yml', async () => {
+    const tempDir = await createTempDir()
+    const configPath = path.join(tempDir, 'package.yml')
+
+    try {
+      expect.assertions(1)
+
+      await fs.writeFile(
+        configPath,
+        `lint-staged:
+            "*": mytask
+        `
+      )
+
+      const { config } = await loadConfig({ configPath }, logger)
+
+      expect(config).toMatchInlineSnapshot(`
+        {
+          "*": "mytask",
+        }
+      `)
+    } finally {
+      await fs.rm(tempDir, { recursive: true })
+    }
+  })
+
+  it('should not return config when package.yaml file is invalid', async () => {
+    const tempDir = await createTempDir()
+    const configPath = path.join(tempDir, 'package.yaml')
+
+    try {
+      expect.assertions(1)
+
+      await fs.writeFile(configPath, '{')
+
+      const { config } = await loadConfig({ configPath }, logger)
+
+      expect(config).toBeNull()
+    } finally {
+      await fs.rm(tempDir, { recursive: true })
+    }
+  })
+
+  it('should treat config file without extension as YAML', async () => {
+    const tempDir = await createTempDir()
+    const configPath = path.join(tempDir, 'lint-staged-config')
+
+    try {
+      expect.assertions(1)
+
+      await fs.writeFile(configPath, `"*": mytask`)
+
+      const { config } = await loadConfig({ configPath }, logger)
+
+      expect(config).toMatchInlineSnapshot(`
+        {
+          "*": "mytask",
+        }
+      `)
+    } finally {
+      await fs.rm(tempDir, { recursive: true })
+    }
+  })
+
+  it('should not return config when invalid file without extension', async () => {
+    const tempDir = await createTempDir()
+    const configPath = path.join(tempDir, 'lint-staged-config')
+
+    try {
+      expect.assertions(1)
+
+      await fs.writeFile(configPath, `{`)
+
+      const { config } = await loadConfig({ configPath }, logger)
+
+      expect(config).toBeUndefined()
+    } finally {
+      await fs.rm(tempDir, { recursive: true })
+    }
   })
 })
